@@ -1,0 +1,242 @@
+noteValues = {C=0,D=2,E=4,F=5,G=7,A=9,B=11}
+keys = {1,0,1,0,0,1,0,1,0,1,0,0,1,0,1,0,0,1,0,1,0,1,0,0,1,0,1,0,0,1,0,1,0,1,0,0,1,0,1,0,0,1,0,1,0,1,0}
+bgColors = {}
+bgColors[0] = {0x8000,0x20  ,0x8  ,0x8  ,0x10  ,0x10  ,0x8  ,0x40 }
+bgColors[1] = {0x8000,0x2000,0x200,0x200,0x2   ,0x2   ,0x200,0x4  }
+bgColors[2] = {0x8000,0x80  ,0x800,0x800,0x1000,0x1000,0x800,0x400}
+fgColors = {}
+fgColors[0] = {0x8000,0x20  ,0x8  ,0x20  ,0x10  ,0x20  ,0x10  ,0x40 }
+fgColors[1] = {0x8000,0x2000,0x200,0x2000,0x2   ,0x2000,0x2000,0x4  }
+fgColors[2] = {0x8000,0x80  ,0x800,0x80  ,0x1000,0x80  ,0x80  ,0x400}
+
+ids = fs.open("/computerIds.txt","r")
+computerIds = {}
+for nn=6, 42, 1 do
+	computerIds[nn] = tonumber(ids.readLine())
+end
+ids.close()
+
+function decodeNote(note)
+	noteValue = noteValues[string.upper(string.sub(note,1,1))]
+	octave = string.sub(note,3,3) - 2
+	if noteValue == nil or octave == nil then
+		return nil
+	end
+	pitch = 0
+	if string.sub(note,2,2) == "#" then
+		pitch = 1
+	elseif string.lower(string.sub(note,2,2)) == "b" then
+		pitch = -1
+	end
+	return noteValue + pitch + octave*12
+end
+
+
+
+ticker = 1
+tempo = 1
+relativeTempo = tempo
+harmony = 0
+scroll = 2
+noteVolumes = {}
+noteDurations = {}
+prevDurations = {}
+for nn=6, 42, 1 do
+	noteVolumes[nn] = 1
+	noteDurations[nn] = 0
+	prevDurations[nn] = 1
+end
+
+
+
+rednet.open("bottom")
+rednet.broadcast(0)
+term.clear()
+term.setCursorPos(1,1)
+monitor = peripheral.wrap("right")
+computer = term.redirect(monitor)
+paintutils.drawFilledBox(1, 1, 39, 21, colors.black)
+window = window.create(monitor, 2, 4, 37, 16, true)
+term.redirect(window)
+paintutils.drawFilledBox(1, 1, 39, 21, colors.black)
+term.redirect(computer)
+
+while true do
+	music = nil
+	print("Select A Music :")
+	list = fs.list("/musics")
+	for nn=1, #list do
+		print("   \16 "..string.sub(list[nn],1,-5))
+	end
+	write("   \16 ")
+	music = "/musics/"..read()..".txt"
+	print("\nLoading : "..music)
+	music = fs.open(music,"r")
+
+	term.redirect(monitor)
+	paintutils.drawFilledBox(1, 1, 39, 21, colors.black)
+
+	while music ~= nil do
+		allNotes = 0
+		term.redirect(monitor)
+		numberOfInteractions = 0
+		paintutils.drawBox(1, 1, 1, 16, colors.black)
+		term.setTextColor(colors.gray)
+		for nn=6, 42, 1 do -- Every Tick
+			noteDurations[nn] = noteDurations[nn] - 1
+			if noteDurations[nn] <= 0 then
+				if prevDurations[nn] >= 1 then
+					rednet.send(computerIds[nn],0)
+					term.setCursorPos(1,numberOfInteractions + 1)
+					term.setBackgroundColor(colors.black)
+					print("-")
+					numberOfInteractions = numberOfInteractions + 1
+				end
+				noteDurations[nn] = 0
+				if keys[nn] == 0 then
+					paintutils.drawBox(nn-4, 1, nn-4, 3, colors.white)
+				else
+					paintutils.drawBox(nn-4, 1, nn-4, 2, colors.black)
+					paintutils.drawPixel(nn-4, 3, colors.white)
+				end
+			else
+				if prevDurations[nn] < noteDurations[nn] then
+					rednet.send(computerIds[nn],noteVolumes[nn])
+					term.setCursorPos(1,numberOfInteractions + 1)
+					term.setBackgroundColor(colors.black)
+					print("+")
+					numberOfInteractions = numberOfInteractions + 1
+				end
+				allNotes = allNotes + 1
+				if keys[nn] == 0 then
+					paintutils.drawBox(nn-4, 1, nn-4, 3, colors.lightGray)
+				else
+					paintutils.drawBox(nn-4, 1, nn-4, 2, colors.gray)
+					paintutils.drawPixel(nn-4, 3, colors.white)
+				end
+			end
+			prevDurations[nn] = noteDurations[nn]
+		end
+		
+		if ticker % scroll == 0 then -- Every Scroll Ticks
+			term.redirect(window)
+			term.setBackgroundColor(colors.black)
+			term.scroll(-1)
+			for nn=6, 42, 1 do
+				colorTerm = 0
+				if noteDurations[nn] < 2 then
+					colorTerm = 1
+				end
+				if keys[nn] ~= 0 then
+					colorTerm = colorTerm + 1
+				end
+				if noteDurations[nn] > 0 then
+					term.setCursorPos(nn-5, 1)
+					term.setBackgroundColor(bgColors[colorTerm][noteVolumes[nn] + 1])
+					term.setTextColor(fgColors[colorTerm][noteVolumes[nn] + 1])
+					term.write("\149")
+				end
+			end
+		end
+		
+		term.redirect(computer)
+		while relativeTempo >= tempo do -- Every Tempo
+			relativeTempo = relativeTempo - tempo
+			line = music.readLine()
+			if line ~= nil then
+				if string.len(line) >= 10 and string.sub(line,1,1) ~= "p" then
+					for nn=1, string.len(line) - 9, 11 do
+						note = string.sub(line,nn,nn+2)
+						volume = string.sub(line,nn+4,nn+5)
+						duration = string.sub(line,nn+7,nn+9)
+						write(note.." "..volume.." "..duration.." ")
+						note = decodeNote(note)
+						if harmony == 0 then
+							noteDurations[note] = duration
+							noteVolumes[note] = volume
+						elseif harmony == 1 then
+							noteDurations[note] = duration
+							noteVolumes[note] = volume
+							if noteDurations[note - 12] ~= nil then
+								if tonumber(noteDurations[note - 12]) < tonumber(duration) then
+									noteDurations[note - 12] = duration
+									noteVolumes[note - 12] = volume
+								end
+							end
+						elseif harmony == 2 then
+							noteDurations[note] = duration
+							noteVolumes[note] = volume
+							if noteDurations[note - 12] ~= nil then
+								if tonumber(noteDurations[note - 12]) < tonumber(duration) then
+									noteDurations[note - 12] = duration
+									noteVolumes[note - 12] = volume
+								end
+							end
+							if noteDurations[note - 24] ~= nil then
+								if tonumber(noteDurations[note - 24]) < tonumber(duration) then
+									noteDurations[note - 24] = duration
+									noteVolumes[note - 24] = volume
+								end
+							end
+							if noteDurations[note - 36] ~= nil then
+								if tonumber(noteDurations[note - 36]) < tonumber(duration) then
+									noteDurations[note - 36] = duration
+									noteVolumes[note - 36] = volume
+								end
+							end
+						elseif harmony == 3 then
+							noteDurations[note] = duration
+							noteVolumes[note] = volume
+							if noteDurations[note - 1] ~= nil then
+								if tonumber(noteDurations[note - 1]) < tonumber(duration) then
+									noteDurations[note - 1] = duration
+									noteVolumes[note - 1] = volume
+								end
+							end
+						end
+					end
+				else
+					code = string.lower(string.sub(line,1,1))
+					if code == "t" then
+						tempo = tonumber(string.sub(line,2,-1))
+						relativeTempo = relativeTempo + tempo
+					elseif code == "h" then
+						harmony = tonumber(string.sub(line,2,-1))
+						relativeTempo = relativeTempo + tempo
+					elseif code == "s" then
+						scroll = tonumber(string.sub(line,2,-1))
+						relativeTempo = relativeTempo + tempo
+					elseif code == "p" then
+						term.redirect(window)
+						posX = tonumber(string.sub(line,3,4))
+						posY = tonumber(string.sub(line,6,7))
+						huehue = tonumber(string.sub(line,9,10))
+						message = tostring(string.sub(line,12,-1))
+						term.setCursorPos(posX,posY)
+						term.setTextColor(2^huehue)
+						write(message)
+						term.redirect(computer)
+						print(message)
+						relativeTempo = relativeTempo + tempo
+					end
+				end
+				print("")
+			end
+			
+			if allNotes == 0 and line == nil then
+				music.close()
+				rednet.broadcast(0)
+				music = nil
+			end
+		end
+		
+		timerID = nil
+		term.redirect(computer)
+		os.sleep(0.05)
+		relativeTempo = relativeTempo + 1
+		ticker = ticker + 1
+	end
+	term.redirect(computer)
+	term.clear()
+	term.setCursorPos(1,1)
+end
