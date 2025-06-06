@@ -1,0 +1,183 @@
+obstacleMap = {}
+mapTxt = fs.open("map.txt", "r")
+zSize = mapTxt.readLine()
+xSize = mapTxt.readLine()
+for nz = 1, zSize, 1 do
+	obstacleMap[nz] = {}
+	for nx = 1, xSize, 1 do
+		obstacleMap[nz][nx] = 0 - tonumber(mapTxt.readLine())
+		write(0 - obstacleMap[nz][nx])
+	end
+	print("")
+end
+
+
+
+
+
+cardinalDirections = {north = 0, east = 1, south = 2, west = 3}
+function rotate(direction)
+	direction = cardinalDirections[direction]
+	if direction ~= curDir then
+		if (curDir - 1)%4 == direction then 
+			turtle.turnLeft()
+		elseif (curDir + 1)%4 == direction then
+			turtle.turnRight()
+		else
+			turtle.turnRight()
+			os.sleep(0.4)
+			turtle.turnRight()
+		end
+	end
+	curDir = direction
+end
+
+function moveTo(x, z)
+	while curX < x do
+		rotate("east")
+		turtle.forward()
+		curX = curX + 1
+		os.sleep(0.4)
+	end
+	while curX > x do
+		rotate("west")
+		turtle.forward()
+		curX = curX - 1
+		os.sleep(0.4)
+	end
+	while curZ < z do
+		rotate("south")
+		turtle.forward()
+		curZ = curZ + 1
+		os.sleep(0.4)
+	end
+	while curZ > z do
+		rotate("north")
+		turtle.forward()
+		curZ = curZ - 1
+		os.sleep(0.4)
+	end
+end
+
+function pathFind(objX, objZ)
+	for nz = 1, zSize, 1 do
+		for nx = 1, xSize, 1 do
+			if obstacleMap[nz][nx] > 0 then
+				obstacleMap[nz][nx] = 0
+			end
+			--write(0 - obstacleMap[nz][nx])
+		end
+		--print("")
+		--os.sleep(0.1)
+	end
+	
+	lookX = curX
+	lookZ = curZ
+	pathMap = {}
+	-- PosZ, PosX, Parent, AllreadySeen, Accumulated, DistanceToEnd
+	table.insert(pathMap, {lookZ, lookX, 0, 0, 0, math.sqrt((lookX-objX)^2 + (lookZ-objZ)^2)})
+	while lookX ~= objX or lookZ ~= objZ do
+		--print(pathMap[1][1], pathMap[1][2], pathMap[1][3], pathMap[1][4], pathMap[1][5], math.floor(pathMap[1][6]))
+		pathMap[1][4] = 999999
+		obstacleMap[lookZ][lookX] = 2
+		if obstacleMap[lookZ+1] ~= nil then
+			if obstacleMap[lookZ+1][lookX] == 0 then
+				table.insert(pathMap, {lookZ+1, lookX, pathMap[1], 0, pathMap[1][5]+0.5, math.sqrt((lookX-objX)^2 + (lookZ+1-objZ)^2)})
+			end
+		end
+		if obstacleMap[lookZ-1] ~= nil then
+			if obstacleMap[lookZ-1][lookX] == 0 then
+				table.insert(pathMap, {lookZ-1, lookX, pathMap[1], 0, pathMap[1][5]+0.5, math.sqrt((lookX-objX)^2 + (lookZ-1-objZ)^2)})
+			end
+		end
+		if obstacleMap[lookZ][lookX+1] ~= nil then
+			if obstacleMap[lookZ][lookX+1] == 0 then
+				table.insert(pathMap, {lookZ, lookX+1, pathMap[1], 0, pathMap[1][5]+0.5, math.sqrt((lookX+1-objX)^2 + (lookZ-objZ)^2)})
+			end
+		end
+		if obstacleMap[lookZ][lookX-1] ~= nil then
+			if obstacleMap[lookZ][lookX-1] == 0 then
+				table.insert(pathMap, {lookZ, lookX-1, pathMap[1], 0, pathMap[1][5]+0.5, math.sqrt((lookX-1-objX)^2 + (lookZ-objZ)^2)})
+			end
+		end
+		table.sort(pathMap, function(k1, k2) return (k1[4]+k1[5]+k1[6]) < (k2[4]+k2[5]+k2[6]) end)
+		lookX = pathMap[1][2]
+		lookZ = pathMap[1][1]
+		--os.sleep(0.05)
+	end
+	
+	pathTable = {}
+	table.insert(pathTable, 1, pathMap[1])
+	while pathTable[1][3] ~= 0 do
+		--print(pathTable[1][1], pathTable[1][2])
+		lookX = pathTable[1][2]
+		lookZ = pathTable[1][1]
+		obstacleMap[lookZ][lookX] = 5
+		table.insert(pathTable, 1, pathTable[1][3])
+	end
+	obstacleMap[objZ][objX] = 5
+	
+	for nz = 1, zSize, 1 do
+		for nx = 1, xSize, 1 do
+			if obstacleMap[nz][nx] < 0 then
+				write("#")
+			elseif obstacleMap[nz][nx] == 0 then
+				write(".")
+			elseif obstacleMap[nz][nx] == 2 then
+				write("~")
+			elseif obstacleMap[nz][nx] == 5 then
+				write("$")
+			end
+		end
+		print("")
+		os.sleep(0.2)
+	end
+	
+	for nn = 1, #pathTable do
+		moveTo(pathTable[nn][2], pathTable[nn][1])
+	end
+	moveTo(objX, objZ)
+end
+
+
+
+
+
+write("What's My Current X? ")
+curX = tonumber(read())
+write("What's My Current Z? ")
+curZ = tonumber(read())
+write("Which Direction Am I Facing? ")
+curDir = cardinalDirections[string.lower(read())]
+
+while true do
+	while turtle.getFuelLevel() < 400 and turtle.getItemCount(1) > 0 do
+		turtle.select(1)
+		turtle.refuel(1)
+	end
+	if turtle.getItemCount(1) <= 32 then
+		pathFind(11, 1)
+		turtle.select(1)
+		os.sleep(0.1)
+		turtle.suckDown(32)
+	end
+	pathFind(1, 1)
+	for nn = 5, 10 do
+		turtle.select(nn)
+		os.sleep(0.1)
+		turtle.suckDown(1)
+	end
+	pathFind(3, 13)
+	for nn = 11, 16 do
+		turtle.select(nn)
+		os.sleep(0.1)
+		turtle.suckDown(1)
+	end
+	pathFind(15,15)
+	for nn = 2, 16 do
+		turtle.select(nn)
+		os.sleep(0.1)
+		turtle.dropDown()
+	end
+	
+end
