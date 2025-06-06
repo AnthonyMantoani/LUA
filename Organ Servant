@@ -1,0 +1,25 @@
+rednet.open("bottom")
+while true do
+	id,aa = rednet.receive()
+	if aa % 2 > 0 then
+		redstone.setAnalogOutput("top",1)
+		write("1")
+	else
+		redstone.setAnalogOutput("top",0)
+		write("0")
+	end
+	if aa % 4 > 1 then
+		redstone.setAnalogOutput("back",1)
+		write("1")
+	else
+		redstone.setAnalogOutput("back",0)
+		write("0")
+	end
+	if aa % 8 > 3 then
+		redstone.setAnalogOutput("front",1)
+		write("1 ")
+	else
+		redstone.setAnalogOutput("front",0)
+		write("0 ")
+	end
+end
