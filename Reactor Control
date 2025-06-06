@@ -1,0 +1,590 @@
+local computer = require("computer")
+local keyboard = require("keyboard")
+local component = require("component")
+local gpu = component.gpu
+local reactor = component.br_reactor
+local clr = { b=0x000000 , w=0x7fff7f }
+local barsCresc = {[0]=" ","▁","▂","▃","▄","▅","▆","▇"}
+
+function clearScreen()
+  gpu.setForeground(clr.w)
+  gpu.setBackground(clr.b)
+  gpu.fill(1,1,48,16," ")
+end
+
+function drawBaseScreen()
+  gpu.setBackground(clr.w)
+  gpu.setForeground(clr.b)
+  gpu.fill(1,1,48,1,"▒")
+  gpu.fill(1,3,48,1,"▒")
+  gpu.fill(1,16,48,1,"▒")
+  gpu.fill(1,1,1,16,"▒")
+  gpu.fill(37,1,1,16,"▒")
+  gpu.fill(48,1,1,16,"▒")
+  gpu.fill(42,4,1,12," ")
+  gpu.set(42,4,"-")
+  gpu.set(42,15,"-")
+  gpu.setBackground(clr.b)
+  gpu.setForeground(clr.w)
+  gpu.set(2,2,"<<")
+  gpu.set(35,2,">>")
+end
+
+function drawWideBar(x,y,wide,size,fgClr,bgClr)
+  local mainSize = math.floor(size)
+  local remainder = size - mainSize
+  local finalY = y - mainSize
+  if mainSize >= 1 then
+    gpu.fill(x,finalY + 1,wide,mainSize,"█")
+  end
+  gpu.setBackground(bgClr)
+  if remainder >= 0.125 then
+    local remainder = remainder * 8
+    local remainder = math.floor(remainder)
+    local halfBar = barsCresc[remainder]
+    gpu.fill(x,finalY,wide,1,halfBar)
+  end
+end
+
+function drawBar(x,y,size,fgClr,bgClr)
+  gpu.setBackground(fgClr)
+  gpu.setForeground(fgClr)
+  local mainSize = math.floor(size)
+  local remainder = size - mainSize
+  local finalY = y - mainSize
+  if mainSize >= 1 then
+    gpu.fill(x,finalY + 1,1,mainSize,"█")
+  end
+  gpu.setBackground(bgClr)
+  if remainder >= 0.125 then
+    local remainder = remainder * 8
+    local remainder = math.floor(remainder)
+    local halfBar = barsCresc[remainder]
+    gpu.set(x,finalY,halfBar)
+  end
+end
+
+function tableSize(tab)
+  local n = 0
+  for _ in pairs(tab) do
+	n = n + 1 
+  end
+  return n
+end
+
+function maxValue(tab)
+  local size = tableSize(tab)
+  local number = tab[1]
+  n = 1
+  while n < size + 1 do
+    if number < tab[n] then
+	  number = tab[n]
+	end
+	n = n + 1
+  end
+  return number
+end
+
+function minValue(tab)
+  local size = tableSize(tab)
+  local number = tab[1]
+  n = 1
+  while n < size + 1 do
+    if number > tab[n] then
+	  number = tab[n]
+	end
+	n = n + 1
+  end
+  return number
+end
+
+function addTableValue(tab,value)
+  local size = tableSize(tab)
+  local n = 1
+  while n < size do
+	tab[n] = tab[n + 1]
+	n = n + 1
+  end
+  tab[size] = value
+  return tab
+end
+
+function shrinkTable(tab)
+  local newtab = {}
+  local size = tableSize(tab)
+  local minimum = minValue(tab)
+  local n = 1
+  while n < size + 1 do
+	newtab[n] = tab[n] - minimum
+	n = n + 1
+  end
+  return newtab
+end
+
+function expandTable(tab,obMax)
+  local newtab = {}
+  local size = tableSize(tab)
+  local multiplier = maxValue(tab)
+  local multiplier = obMax / multiplier
+  local n = 1
+  while n < size do
+	newtab[n] = tab[n] * multiplier
+	n = n + 1
+  end
+  return newtab
+end
+
+function convertNumber(number)
+  if number >= 1 and number < 1000 then
+    number = number
+    sufix = " "
+  elseif number >= 1000 and number < 1000000 then
+    number = number / 1000
+    sufix = "K"
+  elseif number >= 1000000 and number < 1000000000 then
+    number = number / 1000000
+    sufix = "M"
+  elseif number >= 1000000000 and number < 1000000000000 then
+    number = number / 1000000000
+    sufix = "G"
+  elseif number >= 0.001 and number < 1 then
+    number = number * 1000
+    sufix = "m"
+  elseif number >= 0.000001 and number < 0.001 then
+    number = number * 1000000
+    sufix = "µ"
+  elseif number >= 0.000000001 and number < 0.000001  then
+    number = number * 1000000000
+    sufix = "n"
+  else
+    number = 0
+    sufix = "!"
+  end
+  if number < 1000 and number >= 100 then
+    number = math.floor(number)
+	prefix = ""
+  elseif number < 100 and number >= 10 then
+    number = math.floor(number)
+	prefix = "0"
+  elseif number < 10 then
+    number = number * 10
+	number = math.floor(number)
+	number = number / 10
+	prefix = ""
+  else
+    
+  end
+resNf = {prefix,tostring(number),sufix}
+result = table.concat(resNf)
+  return result
+end
+
+function drawAbsGraph(x,y,tab,tableClr,graphClr)
+  local sizex = tableSize(tab)
+  local sizey = maxValue(tab)
+  local sizey = math.ceil(sizey)
+  gpu.setBackground(tableClr)
+  gpu.fill(x,y - sizey + 1,sizex,sizey," ")
+  local n = 1
+  while n <= sizex do
+    local size = tab[n]
+    drawBar(x + n - 1,y,size,graphClr,tableClr)
+	n = n + 1
+  end
+end
+
+---- Boot Sector ----
+
+local tabReactivity = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+local tabIntTemp = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+local tabExtTemp = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+local tabProduction = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+local tabFuelUse = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+local tabEficiency = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+local MaximumBattery = 10000000 -- Insert Maximum Battery Here --
+
+local step5 = 5
+local step10 = 10
+
+local whatScreen = 0
+local whatBar = 1
+local whatTableText = " "
+local whatTable = {}
+local whatBarMax = 1
+local whatBarFill = 0.5
+local whatBarText = " "
+local autoTurnoff = - 1
+local locateMostEfficient = 0
+local autoTurnoff = - 1
+local objectiveRodLevel = 0
+local mostEfficientLevel = 75
+local setMostEfficient = 0
+
+computer.beep(800,0.25)
+computer.beep(1000,0.25)
+computer.beep(1200,0.25)
+gpu.setResolution(48,16)
+
+---- Main Loop ----
+
+while loop == loop do
+  if keyboard.isKeyDown("q") then -- Turn Computer Off --
+	computer.beep(1400,0.1)
+    computer.beep(1200,0.1)
+	computer.beep(1000,0.1)
+    os.exit()
+  end
+  
+  ---- Controls ----
+  
+  if step5 == 5 then
+    if keyboard.isKeyDown("a") then -- Switching Between Screens --
+      whatScreen = whatScreen - 1
+	  computer.beep(900,0.1)
+    elseif keyboard.isKeyDown("d") then
+      whatScreen = whatScreen + 1
+	  computer.beep(1100,0.1)
+    end
+    if keyboard.isKeyDown("z") then
+      whatBar = whatBar - 1
+	  computer.beep(900,0.1)
+    elseif keyboard.isKeyDown("c") then
+      whatBar = whatBar + 1
+	  computer.beep(1100,0.1)
+    end
+    if whatScreen >= 7 then
+      whatScreen = - 1
+    elseif whatScreen <= -2 then
+      whatScreen = 6
+    end
+	if whatBar >= 4 then
+      whatBar = 1
+    elseif whatBar <= 0 then
+      whatBar = 3
+    end
+	
+	if keyboard.isKeyDown("p") then -- Switching Command Modes --
+      autoTurnoff = - autoTurnoff
+	  computer.beep(1500,0.1)
+    elseif keyboard.isKeyDown("o") then
+      locateMostEfficient = 1
+	elseif keyboard.isKeyDown("l") then
+      setMostEfficient = 1
+	elseif keyboard.isKeyDown("i") and keyboard.isKeyDown(0x2A) then
+	  objectiveRodLevel = objectiveRodLevel + 10
+	  computer.beep(1600,0.1)
+    elseif keyboard.isKeyDown("k") and keyboard.isKeyDown(0x2A) then
+	  objectiveRodLevel = objectiveRodLevel - 10
+	  computer.beep(1800,0.1)
+	elseif keyboard.isKeyDown("i") then
+	  objectiveRodLevel = objectiveRodLevel + 1
+	  computer.beep(800,0.1)
+    elseif keyboard.isKeyDown("k") then
+	  objectiveRodLevel = objectiveRodLevel - 1
+	  computer.beep(900,0.1)
+    end
+	if objectiveRodLevel > 99 then
+	  objectiveRodLevel = 99
+	elseif objectiveRodLevel < 0 then
+	  objectiveRodLevel = 0
+	end
+	
+	
+  end
+    
+  ---- Mathematics ----
+  
+  if step10 == 10 then
+    Reactivity = reactor.getFuelReactivity() -- Graphics --
+    IntTemp = reactor.getFuelTemperature()
+    ExtTemp = reactor.getCasingTemperature()
+    Production = reactor.getEnergyProducedLastTick()
+    FuelUse = reactor.getFuelConsumedLastTick() / 1000
+    Eficiency = reactor.getEnergyProducedLastTick() * 1000 / reactor.getFuelConsumedLastTick()
+	if Eficiency == math.huge or Eficiency == - math.huge then
+	  Eficiency = 0
+	end
+	if Eficiency ~= Eficiency then
+	  Eficiency = 0
+	end
+    
+    Battery = reactor.getEnergyStored() / MaximumBattery -- Bars --
+    Fuel = reactor.getFuelAmount() / reactor.getFuelAmountMax()
+    Waste = reactor.getWasteAmount() / reactor.getFuelAmountMax()
+	
+	-- Mover --
+	
+	tabReactivity = addTableValue(tabReactivity,Reactivity) 
+    tabIntTemp = addTableValue(tabIntTemp,IntTemp)
+    tabExtTemp = addTableValue(tabExtTemp,ExtTemp)
+    tabProduction = addTableValue(tabProduction,Production)
+    tabFuelUse = addTableValue(tabFuelUse,FuelUse)
+    tabEficiency = addTableValue(tabEficiency,Eficiency)
+		
+	-- Automatic Modes --
+	
+	if autoTurnoff == 1 then  -- Auto Turnoff --
+	  if Battery > 0.8 then
+	    reactor.setActive(false)
+	  elseif Battery < 0.2 then
+	    reactor.setActive(true)
+	  end
+	end
+	
+	if locateMostEfficient == 1 then -- Locate Most Efficient Rod Level --
+	  gpu.setBackground(clr.b)
+      gpu.setForeground(clr.w)
+	  computer.beep(1000,1)
+	  gpu.fill(2,4,31,12," ")
+	  gpu.fill(38,4,10,12,"▒")
+	  gpu.set(2,15,"Processing ")
+	  gpu.set(2,4,"Starting Setup ...")
+	  gpu.fill(12,15,25,1,tostring("▏"))
+	  locateMostEfficient = 0
+	  reactor.setAllControlRodLevels(4)
+	  os.sleep(10)
+	  gpu.set(12,15,tostring("▉"))
+	  gpu.set(2,5,"Settling Temperature ...")
+	  computer.beep(2000,0.5)
+	  os.sleep(0.5)
+	  gpu.set(13,15,tostring("▉"))
+	  computer.beep(2000,0.5)
+	  os.sleep(0.5)
+	  gpu.set(14,15,tostring("▉"))
+	  computer.beep(2000,0.5)
+	  os.sleep(0.5)
+	  gpu.set(15,15,tostring("▉"))
+	  computer.beep(2000,0.5)
+	  os.sleep(0.5)
+	  gpu.set(16,15,tostring("▉"))
+	  gpu.set(2,6,"Starting 9by9 Location ...")
+	  -----
+	  local n = 1
+	  local maxEfic = 0
+	  local workTab = {}
+	  while n <= 11 do
+	    local realLevel = n * 9
+	    reactor.setAllControlRodLevels(4 + realLevel)
+		os.sleep(9)
+		gpu.set(2,7,"Changing Level ...")
+		computer.beep(1000,0.5)
+	    os.sleep(0.5)
+		gpu.set(2,7,"Settling ...      ")
+		workTab[n] = reactor.getEnergyProducedLastTick() * 1000 / reactor.getFuelConsumedLastTick()
+		if workTab[n] > maxEfic then
+		  maxEfic = workTab[n]
+		  maxEficPlace = n
+		  gpu.set(2,8,"Actual Eficiency : ")
+		  gpu.set(21,8,tostring(maxEficPlace * 9 + 4))
+		  computer.beep(1100,0.1)
+		end
+		gpu.set(16 + n,15,tostring("▉"))
+		n = n + 1
+	  end
+	  -----
+	  gpu.set(2,9,"Settling Temperature ...")
+	  local newStartEfic = maxEficPlace * 9
+	  local newStartEfic = newStartEfic + 4
+	  reactor.setAllControlRodLevels(newStartEfic - 4)
+	  os.sleep(10)
+	  gpu.set(2,10,"Starting 1by1 Location ...")
+	  -----
+	  local n = - 4
+	  local maxEfic = 0
+	  local workTab = {}
+	  while n <= 4 do
+	    local realLevel = newStartEfic + n
+	    reactor.setAllControlRodLevels(realLevel)
+		os.sleep(4)
+		gpu.set(2,11,"Changing Level ...")
+		computer.beep(1000,0.5)
+	    os.sleep(0.5)
+		gpu.set(2,11,"Settling ...      ")
+		workTab[n] = reactor.getEnergyProducedLastTick() * 1000 / reactor.getFuelConsumedLastTick()
+		if workTab[n] > maxEfic then
+		  maxEfic = workTab[n]
+		  maxEficPlace = n
+		  gpu.set(2,12,"Actual Eficiency : ")
+		  gpu.set(21,12,tostring(maxEficPlace))
+		  computer.beep(1100,0.1)
+		end
+		gpu.set(32 + n,15,tostring("▉"))
+		n = n + 1
+	  end
+	  gpu.set(2,15,"Done !                             ")
+	  computer.beep(1500,1)
+	  mostEfficientLevel = maxEficPlace + newStartEfic
+	  gpu.set(2,13,tostring("Most Efficient level : "))
+	  gpu.set(25,13,tostring(mostEfficientLevel))
+	  computer.beep(500,0.5)
+	  os.sleep(0.5)
+	  gpu.set(2,14,tostring("Returning Old Values ..."))
+	  computer.beep(500,0.5)
+	  os.sleep(0.5)
+	  gpu.set(2,15,tostring("Returning To Main Screen ..."))
+	  computer.beep(500,0.5)
+	  os.sleep(0.5)
+	  reactor.setAllControlRodLevels(objectiveRodLevel)
+	end
+	
+	if setMostEfficient == 1 then -- Substitute Actual Rod Level By Most Efficient --
+	  setMostEfficient = 0
+	  if mostEfficientLevel == "???" then
+	    reactor.setAllControlRodLevels(0)
+	  elseif mostEfficientLevel == 100 then
+	    reactor.setAllControlRodLevels(99)
+		computer.beep(2000,0.5)
+      else 
+	    objectiveRodLevel = mostEfficientLevel
+		computer.beep(2000,0.5)
+	  end
+	end
+	
+	reactor.setAllControlRodLevels(objectiveRodLevel)
+	
+  end
+  
+---- Graphics ---- 
+  
+  if step5 == 5 then
+    clearScreen()
+	drawBaseScreen()
+	if whatScreen == 1 then
+	  whatTable = tabReactivity
+	  whatTableText = " Reactivity (%)  "
+	elseif whatScreen == 2 then
+      whatTable = tabIntTemp
+	  whatTableText = "  IntTemp (°C)   "
+	elseif whatScreen == 3 then
+      whatTable = tabExtTemp
+	  whatTableText = "  ExtTemp (°C)   "
+	elseif whatScreen == 4 then
+      whatTable = tabProduction
+	  whatTableText = " Production (RF) "
+	elseif whatScreen == 5 then
+      whatTable = tabFuelUse
+	  whatTableText = "  FuelUse (B)    "
+	elseif whatScreen == 6 then
+      whatTable = tabEficiency
+	  whatTableText = "Eficiency (RF/B) "
+	elseif whatScreen == 0 then
+	  whatTable = {0,0}
+	  whatTableText = "      Info       "
+	else
+	  whatTable = {0,0}
+	  whatTableText = "  Command Prompt "
+	end
+	
+	if whatBar == 1 then
+	  whatBarMax = 1
+	  whatBarFill = Battery
+	  whatBarText = "«Btry(RF)»"
+	  whatNumMax = MaximumBattery
+	elseif whatBar == 2 then
+      whatBarMax = 1
+	  whatBarFill = Fuel
+	  whatBarText = "«Fuel(mB)»"
+	  whatNumMax = reactor.getFuelAmountMax() / 1000
+	elseif whatBar == 3 then
+      whatBarMax = 1
+	  whatBarFill = Waste
+	  whatBarText = "«Wast(mB)»"
+	  whatNumMax = reactor.getFuelAmountMax() / 1000
+	end
+	
+	local whatBarSize = whatBarFill / whatBarMax -- Draw Side Bar --
+	local whatBarSize = whatBarSize * 12
+	drawWideBar(43,15,5,whatBarSize,clr.w,clr.b)
+	
+	gpu.setBackground(clr.b) -- Labels --
+    gpu.setForeground(clr.w)
+	gpu.set(10,2,whatTableText)
+	gpu.set(38,2,whatBarText)
+	gpu.set(38,4,tostring(convertNumber(whatNumMax))) 
+	gpu.set(38,15,"000 ")
+	local whatTableMax = maxValue(whatTable)
+	local whatTableMin = minValue(whatTable)
+	gpu.set(2,4,tostring(convertNumber(whatTableMax)))
+	gpu.set(2,15,tostring(convertNumber(whatTableMin)))
+	
+	if whatScreen > 0 then  -- Draw Main Graph --
+	  gpu.setBackground(clr.w)
+      gpu.setForeground(clr.b)
+      gpu.fill(6,4,1,12," ")
+	  gpu.set(6,4,"-")
+      gpu.set(6,15,"-")
+	  tableTP = shrinkTable(whatTable)
+	  tableTP = expandTable(tableTP,12)
+      drawAbsGraph(7,15,tableTP,clr.b,clr.w)
+	  gpu.setBackground(clr.w)
+      gpu.setForeground(clr.b)
+	  gpu.fill(1,3,48,1,"▒")
+	end
+	
+	if whatScreen == 0 then  -- Draw Info Screen --
+	  gpu.set(2,4,"Reactiv(%):")
+	  gpu.set(2,5,"IntTmp(°C):")
+	  gpu.set(2,6,"ExtTmp(°C):")
+	  gpu.set(2,7,"Output(RF):")
+	  gpu.set(2,8,"Consum(B) :")
+	  gpu.set(2,9,"Efci(RF/B):")
+	  gpu.set(2,10,"Batery(RF):")
+	  gpu.set(2,11,"Fuel(B)   :")
+	  gpu.set(2,12,"Waste(B)  :")
+	  gpu.set(2,13,"Switch Graphics : a/d")
+	  gpu.set(2,14,"Switch Sidebar : z/c")
+	  gpu.set(2,15,"Turn Off : q      By : Anthony L.M.")
+	  
+	  gpu.set(14,4,tostring(Reactivity))
+	  gpu.set(14,5,tostring(IntTemp))
+	  gpu.set(14,6,tostring(ExtTemp))
+	  gpu.set(14,7,tostring(Production))
+	  gpu.set(14,8,tostring(FuelUse))
+	  gpu.set(14,9,tostring(Eficiency))
+	  gpu.set(14,10,tostring(Battery))
+	  gpu.set(14,11,tostring(Fuel))
+	  gpu.set(14,12,tostring(Waste))
+	end
+	
+	if whatScreen < 0 then  -- Draw Command Prompt --
+	  gpu.set(2,4,tostring("Automatic Turnoff (p) : "))
+	  gpu.set(2,5,tostring("Locate Efficiency (o) : "))
+	  gpu.set(2,6,tostring("Set Eficient Rods (l) : "))
+	  gpu.set(2,7,tostring("Man Set Rods (⇧)(i/k) : "))
+	  gpu.set(2,8,tostring("Actual Ctr Rods Level : "))
+	  gpu.set(2,15,tostring("Reactor "))
+	  
+	  if autoTurnoff == 1 then
+	    gpu.set(26,4,tostring("on "))
+	  else 
+	    gpu.set(26,4,tostring("off"))
+	  end
+	  gpu.set(26,5,tostring(mostEfficientLevel))
+	  gpu.set(26,6,tostring(mostEfficientLevel))
+	  gpu.set(26,7,tostring(objectiveRodLevel))
+	  gpu.set(26,8,tostring(math.floor(reactor.getControlRodLevel(1))))
+	  if reactor.getActive() then
+	    gpu.set(10,15,tostring("on "))
+	  else 
+	    gpu.set(10,15,tostring("off"))
+	  end
+	end
+	
+  end
+  
+---- Clocks ----
+
+  step5 = step5 + 1
+  if step5 > 5 then
+	step5 = 1
+  else
+    os.sleep(0.25)
+  end
+  step10 = step10 + 1
+  if step10 > 10 then
+	step10 = 1
+  else
+	os.sleep(0.1)
+  end
+  os.sleep(0.01)
+end
