@@ -1,0 +1,234 @@
+rednet.open("left")
+servantId = 1
+
+
+
+function sendMessage(computerId, message)
+	term.setTextColour(0x10)
+	print(message)
+	rednet.send(computerId, message, "CHOCOLATE")
+	os.sleep(0.05)
+	dUmP, confirmation = rednet.receive("CHOCOLATE", 5)
+	if confirmation == nil then
+		term.setTextColour(0x4000)
+		print("Message Failed ... Trying Again.")
+		return false
+	elseif confirmation == "yes" then
+		term.setTextColour(0x20)
+		print("Message Succesfull!")
+		return true
+	end
+end
+
+
+
+taskList = {}
+while true do
+	instruction = nil
+	--paintutils
+	term.clear()
+	term.setCursorPos(1, 1)
+	term.setTextColour(0x8)
+	print("Hello Sir.\n")
+	while instruction == nil do
+		term.setTextColour(0x10)
+		write("How Many Stacks Of Candy Should We Do? ")
+		term.setTextColour(0x1)
+		instruction = tonumber(read())
+		if instruction ~= nil then
+			if math.floor(instruction) <= 0 or math.floor(instruction) > 27 then
+				term.setTextColour(0x4000)
+				print("Wait, How Much, Sir?")
+				instruction = nil
+			end
+		end
+	end
+	candyNumber = math.floor(instruction)
+	term.setTextColour(0x20)
+	if candyNumber == 1 then
+		print("Allright Sir, One Stack Will Be Made.")
+	else 
+		print("Allright Sir,", candyNumber, "Stacks Will Be Made.")
+	end
+	instruction = nil
+	while instruction == nil do
+		term.setTextColour(0x10)
+		print("What Should Be The Candy Filling?\n   1 - White Chocolate\n   2 - Milke Chocolate\n   3 - Darke Chocolate")
+		term.setTextColour(0x1)
+		write("   ")
+		instruction = tonumber(read())
+		if instruction ~= nil then
+			if math.floor(instruction) < 1 or math.floor(instruction) > 3 then
+				term.setTextColour(0x4000)
+				print("Sorry, Sir?")
+				instruction = nil
+			end
+		end
+	end
+	fillingType = math.floor(instruction)
+	term.setTextColour(0x20)
+	if fillingType == 1 then
+		print("Allright Sir, The Filling Shall Be Of White Chocolate.")
+	elseif fillingType == 2 then
+		print("Allright Sir, The Filling Shall Be Of Milk Chocolate.")
+	else
+		print("Allright Sir, The Filling Shall Be Of Delicious Dark Chocolate.")
+	end
+	instruction = nil
+	while instruction == nil do
+		term.setTextColour(0x10)
+		print("What Should Be The Candy Coating?\n   0 - None\n   1 - White Chocolate\n   2 - Milke Chocolate\n   3 - Darke Chocolate")
+		term.setTextColour(0x1)
+		write("   ")
+		instruction = tonumber(read())
+		if instruction ~= nil then
+			if math.floor(instruction) < 0 or math.floor(instruction) > 3 or fillingType == math.floor(instruction) then
+				term.setTextColour(0x4000)
+				print("Sorry, Sir?")
+				instruction = nil
+			end
+		end
+	end
+	coatingType = math.floor(instruction)
+	term.setTextColour(0x20)
+	if coatingType == 0 then
+		print("Allright Sir, It Shall Be A Plain Chocolate.")
+	elseif coatingType == 1 then
+		print("Allright Sir, The Coatilg Shall Be Of White Chocolate.")
+	elseif coatingType == 2 then
+		print("Allright Sir, The Filling Shall Be Of Milk Chocolate.")
+	else
+		print("Allright Sir, The Filling Shall Be Of Delicious Dark Chocolate.")
+	end
+	table.insert(taskList, "rest")
+	while candyNumber > 0 do
+		addNumber = candyNumber
+		if candyNumber >= 3 then
+			addNumber = 3
+		end
+		candyNumber = candyNumber - addNumber
+		if coatingType == 0 then
+			if fillingType == 1 then
+				table.insert(taskList, "goto_butter")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+				table.insert(taskList, "goto_sugar")
+				table.insert(taskList, "get_items 5   "..(4+addNumber).."  ")
+				table.insert(taskList, "goto_mixer")
+				table.insert(taskList, "drop_items 2   16 ")
+				table.insert(taskList, "goto_white_chocolate")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			elseif fillingType == 2 then
+				table.insert(taskList, "goto_cocoa")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+				table.insert(taskList, "goto_sugar")
+				table.insert(taskList, "get_items 5   "..(4+addNumber).."  ")
+				table.insert(taskList, "goto_mixer")
+				table.insert(taskList, "drop_items 2   16 ")
+				table.insert(taskList, "goto_normal_chocolate")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			else
+				table.insert(taskList, "goto_cocoa")
+				table.insert(taskList, "get_items 2   2  ")
+				table.insert(taskList, "get_items 8   "..(6+addNumber*2).."  ")
+				table.insert(taskList, "goto_butter")
+				table.insert(taskList, "get_items 3   "..(2+addNumber).."  ")
+				table.insert(taskList, "goto_sugar")
+				table.insert(taskList, "get_items 13  "..(12+addNumber).."  ")
+				table.insert(taskList, "goto_mixer")
+				table.insert(taskList, "drop_items 2   16 ")
+				table.insert(taskList, "goto_dark_chocolate")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			end
+			table.insert(taskList, "goto_output")
+			table.insert(taskList, "drop_items 2   16 ")
+			table.insert(taskList, "rest")
+		else
+			if fillingType == 1 then
+				table.insert(taskList, "goto_butter")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+				table.insert(taskList, "goto_sugar")
+				table.insert(taskList, "get_items 5   "..(4+addNumber).."  ")
+				table.insert(taskList, "goto_mixer")
+				table.insert(taskList, "drop_items 2   16 ")
+				table.insert(taskList, "rest")
+				table.insert(taskList, "goto_white_chocolate")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			elseif fillingType == 2 then
+				table.insert(taskList, "goto_cocoa")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+				table.insert(taskList, "goto_sugar")
+				table.insert(taskList, "get_items 5   "..(4+addNumber).."  ")
+				table.insert(taskList, "goto_mixer")
+				table.insert(taskList, "drop_items 2   16 ")
+				table.insert(taskList, "rest")
+				table.insert(taskList, "goto_normal_chocolate")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			else
+				table.insert(taskList, "goto_cocoa")
+				table.insert(taskList, "get_items 2   2  ")
+				table.insert(taskList, "get_items 8   "..(6+addNumber*2).."  ")
+				table.insert(taskList, "goto_butter")
+				table.insert(taskList, "get_items 3   "..(2+addNumber).."  ")
+				table.insert(taskList, "goto_sugar")
+				table.insert(taskList, "get_items 13  "..(12+addNumber).."  ")
+				table.insert(taskList, "goto_mixer")
+				table.insert(taskList, "drop_items 2   16 ")
+				table.insert(taskList, "rest")
+				table.insert(taskList, "goto_dark_chocolate")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			end
+			table.insert(taskList, "goto_coater_bar")
+			table.insert(taskList, "drop_items 2   16 ")
+			if coatingType == 1 then
+				table.insert(taskList, "goto_butter")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+				table.insert(taskList, "goto_sugar")
+				table.insert(taskList, "get_items 5   "..(4+addNumber).."  ")
+				table.insert(taskList, "goto_mixer")
+				table.insert(taskList, "drop_items 2   16 ")
+				table.insert(taskList, "rest")
+				table.insert(taskList, "goto_white_chocolate")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			elseif coatingType == 2 then
+				table.insert(taskList, "goto_cocoa")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+				table.insert(taskList, "goto_sugar")
+				table.insert(taskList, "get_items 5   "..(4+addNumber).."  ")
+				table.insert(taskList, "goto_mixer")
+				table.insert(taskList, "drop_items 2   16 ")
+				table.insert(taskList, "rest")
+				table.insert(taskList, "goto_normal_chocolate")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			else
+				table.insert(taskList, "goto_cocoa")
+				table.insert(taskList, "get_items 2   2  ")
+				table.insert(taskList, "get_items 8   "..(6+addNumber*2).."  ")
+				table.insert(taskList, "goto_butter")
+				table.insert(taskList, "get_items 3   "..(2+addNumber).."  ")
+				table.insert(taskList, "goto_sugar")
+				table.insert(taskList, "get_items 13  "..(12+addNumber).."  ")
+				table.insert(taskList, "goto_mixer")
+				table.insert(taskList, "drop_items 2   16 ")
+				table.insert(taskList, "rest")
+				table.insert(taskList, "goto_dark_chocolate")
+				table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			end
+			table.insert(taskList, "goto_coater_coating")
+			table.insert(taskList, "drop_items 2   16 ")
+			table.insert(taskList, "rest")
+			table.insert(taskList, "goto_coater_out")
+			table.insert(taskList, "get_items 2   "..(1+addNumber).."  ")
+			table.insert(taskList, "goto_output")
+			table.insert(taskList, "drop_items 2   16 ")
+			table.insert(taskList, "rest")
+		end
+	end
+	
+	while taskList[1] ~= nil do
+		if taskList[1] ~= nil and sendMessage(servantId, taskList[1]) == true then
+			table.remove(taskList, 1)
+		end
+		os.sleep(1)
+	end
+	print("")
+end
